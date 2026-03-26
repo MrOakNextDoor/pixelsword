@@ -12,7 +12,7 @@ DEFAULT_IMAGE.fill((255, 0, 255, 0))
 # Code
 class GameObject(pygame.sprite.Sprite):
     def __init__(self, 
-        image: pygame.Surface | None = None,
+        texture: pygame.Surface | None = None,
         renderer: Renderer | None = None,
         position: pygame.math.Vector2 | Tuple[float, float] = (0, 0), 
         scale: pygame.math.Vector2 | Tuple[float, float] = (64, 64), 
@@ -25,9 +25,7 @@ class GameObject(pygame.sprite.Sprite):
         self.position = position
         self.scale = scale
         self.rotation = rotation
-        self.source = image # Moved the source here because the attribute calls update_image().
-        self.image = image
-        self.rect = None
+        self.texture = texture # Moved texture here because it needs scale and rotation to set the self.image.
 
     # Attributes
     @property
@@ -39,16 +37,15 @@ class GameObject(pygame.sprite.Sprite):
         self._renderer = Renderer() if r is None else r
 
     @property
-    def source(self) -> pygame.Surface:
-        return self._source
+    def texture(self) -> pygame.Surface:
+        return self._texture
     
-    @source.setter
-    def source(self, s: pygame.Surface | None):
+    @texture.setter
+    def texture(self, s: pygame.Surface | None):
         if s is None:
-            self._source = DEFAULT_IMAGE    # Ensures that the GameObject always has something to render.
+            self._texture = DEFAULT_IMAGE    # Ensures that the GameObject always has something to render.
         else:
-            self._source = s
-        self.update_image()
+            self._texture = s
 
     @property
     def position(self) -> pygame.math.Vector2:
@@ -75,38 +72,23 @@ class GameObject(pygame.sprite.Sprite):
         self._rotation = r % 360
 
     @property
-    def rect(self) -> pygame.Rect:
+    def rect(self) -> pygame.Rect:  # type: ignore
         # The rect basically acts as the bounding box/hitbox for the GameObject.
         # Q: Why did I go through all the trouble to implement the rect attribute?
         # A: When I get lazy for other games, I could use the default draw() method of pygame.sprite.Group.
         # pygame.Surface.blit() uses the topleft corner of a Sprite's image to draw stuff.
-        return self.__rect # type: ignore
+        # This attribute effectively re-writes Sprite.rect, making it immutable.
+        # We don't need the rects anyway since we only use it for sprite.Group's default draw().
+        return self.image.get_rect(center=self.position) # type: ignore
     
-    @rect.setter
-    def rect(self, value: pygame.Rect | pygame.FRect | None) -> None:
-        if value is None:
-            # If value is None, default to this GameObject's own position & scale.
-            # GameObjects must always have rects.
-            # Transforms the image first before getting the rect. 
-            # This allows us to get a rect accurate to the GameObject's position and scale.
-            self.update_image()
-            self.__rect = self.image.get_rect(center=self.position) # type: ignore
-            return
-
-        # Attempts to set the position and scale of the GameObject through the rect.
-        # This would immediately raise an error if some bullshit is passed instead of rects.
-        self.position = value.center # type: ignore
-        self.scale = (value.w, value.h) # type: ignore
-        self.__rect = pygame.Rect(value)
+    @property
+    def image(self) -> pygame.Surface:  # type: ignore
+        # Similar to GameObject.rect, image is also immutable.
+        return self.renderer.transform(self.texture, tuple(self.scale), self.rotation)
 
     # Functions
-    def update_image(self) -> None:
-        """Updates the GameObject's image to its current scale and rotation.
-        """
-        self.image = self.renderer.transform(self.source, tuple(self.scale), self.rotation)
-
     def update(self) -> None:
-        self.rect = None    # By default, the rect is derived from the GameObject's info.
+        pass
 
     def draw(self) -> None:
         pass

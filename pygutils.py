@@ -12,9 +12,6 @@ class Clock:
         self.dt: float = 0.0
         self._lt: float = 0.0
 
-        # Hidden Variables
-        self._framerate: int = 0
-
     # Clock Attributes
     @property
     def framerate(self) -> int:
