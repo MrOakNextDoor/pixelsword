@@ -1,20 +1,19 @@
 
 # Libraries
-import pygame as _pygame
+import pygame
 from time import time as _time
 
 # Code
 class Clock:
-    def __init__(self, framerate: int = 300, base_framerate: int = 60):
+    def __init__(self, framerate: int = 300):
         
-        self._clock: _pygame.time.Clock = _pygame.time.Clock()
+        self._clock: pygame.time.Clock = pygame.time.Clock()
         self.framerate = framerate
         self.dt: float = 0.0
         self._lt: float = 0.0
 
         # Hidden Variables
         self._framerate: int = 0
-        self._base_framerate: int = base_framerate
 
     # Clock Attributes
     @property
@@ -30,9 +29,11 @@ class Clock:
         """Updates the Clock.
         """
         
-        self.dt = (self._clock.tick(self.framerate) - self._lt) * self._base_framerate
-        self._lt = _time()
+        # Since .tick() already returns time since last call *in milliseconds*
+        # we multiply by 1000 to get how much we have to adjust in seconds
+        # since everything in the game will hopefully be ran on a rate/sec scale
+        self.dt = self._clock.tick(self.framerate) / 1000
 
 # Testing
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
