@@ -72,7 +72,7 @@ class GameObject(pygame.sprite.Sprite):
         self._rotation = r % 360
 
     @property
-    def rect(self) -> pygame.Rect:  # type: ignore
+    def rect(self) -> pygame.Rect:
         # The rect basically acts as the bounding box/hitbox for the GameObject.
         # Q: Why did I go through all the trouble to implement the rect attribute?
         # A: When I get lazy for other games, I could use the default draw() method of pygame.sprite.Group.
@@ -81,10 +81,18 @@ class GameObject(pygame.sprite.Sprite):
         # We don't need the rects anyway since we only use it for sprite.Group's default draw().
         return self.image.get_rect(center=self.position) # type: ignore
     
+    @rect.setter
+    def rect(self, r) -> None: # type: ignore
+        raise Exception('GameObject.rect not settable.')
+
     @property
-    def image(self) -> pygame.Surface:  # type: ignore
+    def image(self) -> pygame.Surface:
         # Similar to GameObject.rect, image is also immutable.
         return self.renderer.transform(self.texture, tuple(self.scale), self.rotation)
+    
+    @image.setter
+    def image(self, i) -> None: # type: ignore
+        raise Exception('GameObject.image not settable.')
 
     # Functions
     def update(self) -> None:
