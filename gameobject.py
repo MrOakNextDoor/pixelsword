@@ -9,6 +9,13 @@ DEFAULT_IMAGE = pygame.Surface((64, 64))
 DEFAULT_IMAGE.set_colorkey((0, 0, 0, 0))
 DEFAULT_IMAGE.fill((255, 0, 255, 0))
 
+# NOTE:
+# Adding *args and **kwds allows me to reduce the amount of copy-pasting I need to do in the future.
+# It also allows classes that give more args and keyword args to use functions that take less.
+# For example, if I had a Renderer that took "is_good_function," I won't have to copy is_good_function 
+# to the GameObject and Collection.
+# Though for future updates, we would have to use args[index] and kwds[key]
+
 # Code
 class GameObject(pygame.sprite.Sprite):
     def __init__(self, 
@@ -17,12 +24,13 @@ class GameObject(pygame.sprite.Sprite):
         position: pygame.math.Vector2 | Tuple[float, float] = (0, 0), 
         scale: pygame.math.Vector2 | Tuple[float, float] = (64, 64), 
         rotation: float = 0.0,
-        *groups: pygame.sprite.AbstractGroup[pygame.sprite._SpriteSupportsGroup]) -> None:
+        *groups: pygame.sprite.AbstractGroup[pygame.sprite._SpriteSupportsGroup],
+        **kwds: Any) -> None:
         pygame.sprite.Sprite.__init__(self, *groups)
 
         # Variables
         self.renderer = renderer
-        self.position = position
+        self.position = position # Position refers to the centre of the character, unlike pygame's top-left.
         self.scale = scale
         self.rotation = rotation
         self.texture = texture # Moved texture here because it needs scale and rotation to set the self.image.
@@ -95,14 +103,25 @@ class GameObject(pygame.sprite.Sprite):
         raise Exception('GameObject.image not settable.')
 
     # Functions
-    def update(self) -> None:
+    def update(self, *args: Any, **kwds: Any) -> None:
         pass
 
-    def draw(self) -> None:
-        pass
+    def draw(self, 
+        dest: pygame.Surface,
+        draw_hitbox: bool = False,
+        *args: Any, 
+        **kwds: Any) -> None:
+        """Draws a GameObject onto a destination surface. It makes use of the Rendere supplied during __init__().
+        This function may be called by Collection.
+
+        Args:
+            dest (pygame.Surface): Destination surface.
+            draw_hitbox (bool): If true, draws GameObject.rect.
+        """
+        self.renderer(gameobject=self, dest=dest, draw_hitbox=draw_hitbox, *args, **kwds)
 
 class Collection(pygame.sprite.Group):
-    def __init__(self, *gameobjects: Any | GameObject | Collection) -> None:
+    def __init__(self, *gameobjects: Any | GameObject | Collection, **kwds: Any) -> None:
         super().__init__(*gameobjects)
 
     def update(self) -> None:
@@ -111,18 +130,41 @@ class Collection(pygame.sprite.Group):
         for sprite in self:
             sprite.update()
 
-    def render(self) -> None:
-        pass
+    def render(self, 
+        dest: pygame.Surface, 
+        draw_hitbox: bool=False,
+        *args: Any, 
+        **kwds: Any) -> None:
+        """Renders all of the GameObjects in this Collection. More customisable than the standard Group.draw()
+
+        Args:
+            dest (pygame.Surface): Destination surface.
+            draw_hitbox (bool): If true, draws the hitboxes of the GameObject.
+        """
+        for sprite in self:
+            sprite.draw(dest=dest, draw_hitbox=draw_hitbox, *args, **kwds)
 
 class Renderer:
-    def __init__(self) -> None:
-        pass
+    def __init__(self, *args: Any, **kwds: Any) -> None:
+        self.hitbox_colour: pygame.typing.ColorLike = (255, 0, 0, 0)
+        self.hitbox_width: int = 2
 
-    def __call__(self) -> None:
-        pass
+    def __call__(self, gameobject: GameObject, dest: pygame.Surface, draw_hitbox: bool=False, *args: Any, **kwds: Any) -> None:
+        """Blits GameObjects onto a destination surface. This is the standard rendering.
+
+        Args:
+            gameobject (GameObject): GameObject to be blitted.
+            dest (pygame.Surface): Destination surface.
+            draw_hitbox (bool): draw_hitbox (bool): If true, draws GameObject.rect.
+        """
+        if dest.get_rect().colliderect(gameobject.rect):
+            # Prevents rendering when the GameObject is not in view.
+            dest.blit(gameobject.image, gameobject.rect)
+            if draw_hitbox:
+                pygame.draw.rect(dest, self.hitbox_colour, gameobject.rect, self.hitbox_width)
 
     @lru_cache(maxsize=1024)
-    def transform(self, source: pygame.Surface, scale: Tuple[float, float], rotation: float) -> pygame.Surface:
+    def transform(self, source: pygame.Surface, scale: Tuple[float, float], rotation: float, *args: Any, **kwds: Any) -> pygame.Surface:
         """Standard transformation for Surfaces. Scale is done before rotation to maintain its proportions.
 
         Args:
@@ -138,6 +180,12 @@ class Renderer:
         # Scale happens before rotation so that the gameobject retains its proportions.
         # A renderer subclass is used if we want to transformation in weird ways (e.g. for a fake 3D effect).
         return pygame.transform.rotate(pygame.transform.scale(source, scale), rotation)
+
+# Don't delete: this is the peak code. このコード最高すぎだよ！
+# class FlatRenderer(Renderer):
+#     def transform(self, source, scale, rotation) -> pygame.Surface:
+#         surf = super().transform(source, scale, rotation)
+#         return pygame.transform.scale(surf, (surf.get_width(), surf.get_height()//2))
 
 # Testing
 if __name__ == "__main__":
