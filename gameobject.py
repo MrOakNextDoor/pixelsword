@@ -1,4 +1,11 @@
 
+# NOTE:
+# Adding *args and **kwds allows me to reduce the amount of copy-pasting I need to do in the future.
+# It also allows classes that give more args and keyword args to use functions that take less.
+# For example, if I had a Renderer that took "is_good_function," I won't have to copy is_good_function 
+# to the GameObject and Collection.
+# Though for future updates, we would have to use args[index] and kwds[key]
+
 # Libraries
 from functools import lru_cache
 from typing import Any, Tuple
@@ -9,15 +16,18 @@ DEFAULT_IMAGE = pygame.Surface((64, 64))
 DEFAULT_IMAGE.set_colorkey((0, 0, 0, 0))
 DEFAULT_IMAGE.fill((255, 0, 255, 0))
 
-# NOTE:
-# Adding *args and **kwds allows me to reduce the amount of copy-pasting I need to do in the future.
-# It also allows classes that give more args and keyword args to use functions that take less.
-# For example, if I had a Renderer that took "is_good_function," I won't have to copy is_good_function 
-# to the GameObject and Collection.
-# Though for future updates, we would have to use args[index] and kwds[key]
+DEFAULT_RENDERER = NotImplemented
 
 # Code
 class GameObject(pygame.sprite.Sprite):
+    __slots__ = (
+        "_renderer",
+        "_texture",
+        "_position",
+        "_scale",
+        "_rotation",
+        "_rect",
+    )
     def __init__(self, 
         texture: pygame.Surface | None = None,
         renderer: Renderer | None = None,
@@ -42,6 +52,7 @@ class GameObject(pygame.sprite.Sprite):
     
     @renderer.setter
     def renderer(self, r: Renderer | None) -> None:
+        """Renderer to be used by the GameObject. If no renderers are supplied, DEFAULT_RENDERER is used."""
         self._renderer = Renderer() if r is None else r
 
     @property
@@ -49,11 +60,12 @@ class GameObject(pygame.sprite.Sprite):
         return self._texture
     
     @texture.setter
-    def texture(self, s: pygame.Surface | None):
-        if s is None:
+    def texture(self, t: pygame.Surface | None):
+        """Stores the texture to be used by the GameObject but is not modified itself during rendering/drawing (for that, see GameObject.image)."""
+        if t is None:
             self._texture = DEFAULT_IMAGE    # Ensures that the GameObject always has something to render.
         else:
-            self._texture = s
+            self._texture = t
 
     @property
     def position(self) -> pygame.math.Vector2:
@@ -61,6 +73,7 @@ class GameObject(pygame.sprite.Sprite):
 
     @position.setter
     def position(self, p: pygame.math.Vector2 | Tuple[float, float]) -> None:
+        """The GameObject's Position."""
         self._position = pygame.math.Vector2(p)
 
     @property
@@ -69,6 +82,7 @@ class GameObject(pygame.sprite.Sprite):
 
     @scale.setter
     def scale(self, s: pygame.math.Vector2 | Tuple[float, float])  -> None:
+        """The GameObject's Scale. See GameObject.image for more information."""
         self._scale = pygame.math.Vector2(s)
 
     @property
@@ -77,10 +91,12 @@ class GameObject(pygame.sprite.Sprite):
 
     @rotation.setter
     def rotation(self, r: float) -> None:
+        """The GameObject's Rotation. Limited to 0-360. See GameObject.image for more information."""
         self._rotation = r % 360
 
     @property
     def rect(self) -> pygame.Rect:
+        """The GameObject's Rect/Hitbox. Primarily used by pygame.sprite.Group.draw(). This attribute cannot be set."""
         # The rect basically acts as the bounding box/hitbox for the GameObject.
         # Q: Why did I go through all the trouble to implement the rect attribute?
         # A: When I get lazy for other games, I could use the default draw() method of pygame.sprite.Group.
@@ -95,6 +111,7 @@ class GameObject(pygame.sprite.Sprite):
 
     @property
     def image(self) -> pygame.Surface:
+        """The actual image to be drawn onto a surface. Uses the GameObject.renderer to transform GameObject.texture."""
         # Similar to GameObject.rect, image is also immutable.
         return self.renderer.transform(self.texture, tuple(self.scale), self.rotation)
     
@@ -106,12 +123,12 @@ class GameObject(pygame.sprite.Sprite):
     def update(self, *args: Any, **kwds: Any) -> None:
         pass
 
-    def draw(self, 
+    def render(self, 
         dest: pygame.Surface,
         draw_hitbox: bool = False,
         *args: Any, 
         **kwds: Any) -> None:
-        """Draws a GameObject onto a destination surface. It makes use of the Rendere supplied during __init__().
+        """Draws a GameObject onto a destination surface. It makes use of the Renderer supplied during __init__().
         This function may be called by Collection.
 
         Args:
@@ -121,6 +138,10 @@ class GameObject(pygame.sprite.Sprite):
         self.renderer(gameobject=self, dest=dest, draw_hitbox=draw_hitbox, *args, **kwds)
 
 class Collection(pygame.sprite.Group):
+    __slots__ = (
+        "spritedict",
+        "lostsprites"
+    )
     def __init__(self, *gameobjects: Any | GameObject | Collection, **kwds: Any) -> None:
         super().__init__(*gameobjects)
 
@@ -142,12 +163,29 @@ class Collection(pygame.sprite.Group):
             draw_hitbox (bool): If true, draws the hitboxes of the GameObject.
         """
         for sprite in self:
-            sprite.draw(dest=dest, draw_hitbox=draw_hitbox, *args, **kwds)
+            sprite.render(dest=dest, draw_hitbox=draw_hitbox, *args, **kwds)
 
 class Renderer:
-    def __init__(self, *args: Any, **kwds: Any) -> None:
-        self.hitbox_colour: pygame.typing.ColorLike = (255, 0, 0, 0)
-        self.hitbox_width: int = 2
+    __slots__ = {
+        "hitbox_colour": "Colour of the hitboxes to be displayed.",
+        "_hitbox_width": None,
+    }
+    def __init__(self, hitbox_colour: pygame.typing.ColorLike = (255, 0, 0, 0), hitbox_width: int = 1, *args: Any, **kwds: Any) -> None:
+        self.hitbox_colour: pygame.typing.ColorLike = hitbox_colour
+        self.hitbox_width = hitbox_width
+
+    # Attributes
+    @property
+    def hitbox_width(self) -> int:
+        return self._hitbox_width
+    
+    @hitbox_width.setter
+    def hitbox_width(self, h: int) -> None:
+        """Border thickness of the hitbox. May be set to any positive integer. Defaults to 1 if set otherwise."""
+        if h > 0:
+            self._hitbox_width = h
+        else:
+            self._hitbox_width = 1
 
     def __call__(self, gameobject: GameObject, dest: pygame.Surface, draw_hitbox: bool=False, *args: Any, **kwds: Any) -> None:
         """Blits GameObjects onto a destination surface. This is the standard rendering.
@@ -163,6 +201,7 @@ class Renderer:
             if draw_hitbox:
                 pygame.draw.rect(dest, self.hitbox_colour, gameobject.rect, self.hitbox_width)
 
+    # Functions
     @lru_cache(maxsize=1024)
     def transform(self, source: pygame.Surface, scale: Tuple[float, float], rotation: float, *args: Any, **kwds: Any) -> pygame.Surface:
         """Standard transformation for Surfaces. Scale is done before rotation to maintain its proportions.
